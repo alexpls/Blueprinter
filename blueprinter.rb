@@ -62,12 +62,12 @@ module Blueprinter
 			
 			File.open(@readme_filepath, 'w') do |f|
 				f.puts <<txt
-	#{@name}
-	#{md_title_underline(@name)}
+#{@name}
+#{md_title_underline(@name)}
 
-	Project created at: #{Time.now}
-	by Alex Plescan
-	txt
+Project created at: #{Time.now}
+by Alex Plescan
+txt
 			end
 		end
 
