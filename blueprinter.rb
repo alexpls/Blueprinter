@@ -25,9 +25,8 @@ module Blueprinter
 
         formatted_date = Time.now.strftime "%d-%m-%y"
 
-        begin
-          proj_path = File.join(@projects_path, "#{proj_name} #{formatted_date}")
-        rescue # TODO: Rescue what?
+        proj_path = File.join(@projects_path, "#{proj_name} #{formatted_date}")
+        if File.exists? proj_path
           proj_path = nil
           puts "A project by that name already exists"
         end
