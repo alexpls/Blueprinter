@@ -11,6 +11,8 @@ module Blueprinter
       @projects_path = options[:projects_path]
       @blueprint_path = options[:blueprint_path]
       @blueprint_prefix = options[:blueprint_prefix]
+      
+      @post_processors = Hash.new
 
       raise NotDirectoryError unless File.directory? @projects_path
       raise NotDirectoryError unless File.directory? @blueprint_path
@@ -45,6 +47,8 @@ module Blueprinter
       FileUtils.mkdir(@path)
       FileUtils.cp_r(File.join(@blueprint_path, '.'), @path)
 
+      add_processor(/.erb$/, Processors::process_erb_template)
+      
       process_copied_files(@path)
     end
 
@@ -59,31 +63,42 @@ module Blueprinter
           process_copied_files(filepath)
         end
 
-        if file.match(/.erb$/)
-          filepath = process_erb_template(filepath)
-        end
-
         if file.match(/^#{@blueprint_prefix}/)
           prefix_replaced = filepath.gsub(/#{@blueprint_prefix}/, @name_computer_friendly)
           File.rename filepath, prefix_replaced
+          filepath = prefix_replaced
+        end
+        
+        # Run post processors
+        @post_processors.each do |pattern, block|
+          if filepath.match pattern
+            block.call(filepath)
+          end
         end
       end
     end
+    
+    def add_processor(pattern, &block)
+      @post_processors[pattern] = block
+    end
+  end
+  
+  module Processors
+    def process_erb_template
+      lambda |filepath| do
+        template = nil
+        File.open(filepath, 'r') do |file|
+          template = ERB.new file.read
+        end
 
-    def process_erb_template(filepath)
-      template = nil
-      File.open(filepath, 'r') do |file|
-        template = ERB.new file.read
+        File.open(filepath, 'w') do |file|
+          file.truncate(0)
+          file.write(template.result(binding))
+        end
+
+        new_filepath = filepath.gsub(/.erb$/, '')
+        File.rename filepath, new_filepath
       end
-
-      File.open(filepath, 'w') do |file|
-        file.truncate(0)
-        file.write(template.result(binding))
-      end
-
-      new_filepath = filepath.gsub(/.erb$/, '')
-      File.rename filepath, new_filepath
-      return new_filepath
     end
   end
 
