@@ -1,9 +1,8 @@
 require 'fileutils'
+require 'erb'
 
 module Blueprinter
   class Project
-    attr_reader :readme_filepath
-
     def initialize(options = {})
       raise ArgumentError, "projects_path must be specified" unless options[:projects_path]
       raise ArgumentError, "blueprint_path must be specified" unless options[:blueprint_path]
@@ -32,16 +31,10 @@ module Blueprinter
         end
       end
       
+      puts "Starting new project: #{proj_name}"
       init_project(proj_name, proj_path)
-      create_readme
-
-      puts "\nYour new project has been built!"
-      puts "Would you like to open its readme? [y/n]"
-      input = gets.chomp
-      if input.match(/^y/)
-        # TODO: This seems to hang the script until notepad is closed.
-        system('notepad', @readme_filepath)
-      end
+      puts "\nBlueprinter has finished!"
+      puts "You'll find your new project at: #{proj_path}"
     end
 
     def init_project(proj_name, proj_path)
@@ -51,9 +44,6 @@ module Blueprinter
 
       FileUtils.mkdir(@path)
       FileUtils.cp_r(File.join(@blueprint_path, '.'), @path)
-
-      puts "Starting new project:   #{@name}"
-      puts "You'll find it at:      #{@path}"
 
       process_copied_files(@path)
     end
@@ -69,23 +59,31 @@ module Blueprinter
           process_copied_files(filepath)
         end
 
+        if file.match(/.erb$/)
+          filepath = process_erb_template(filepath)
+        end
+
         if file.match(/^#{@blueprint_prefix}/)
-          File.rename filepath, filepath.gsub(/#{@blueprint_prefix}/, @name_computer_friendly)
+          prefix_replaced = filepath.gsub(/#{@blueprint_prefix}/, @name_computer_friendly)
+          File.rename filepath, prefix_replaced
         end
       end
     end
 
-    def create_readme
-      @readme_filepath = File.join @path, 'readme.md'
-      
-      File.open(@readme_filepath, 'w') do |f|
-        f.puts <<txt
-#{@name}
-#{"=" * @name.length}
-
-Project created at: #{Time.now}
-txt
+    def process_erb_template(filepath)
+      template = nil
+      File.open(filepath, 'r') do |file|
+        template = ERB.new file.read
       end
+
+      File.open(filepath, 'w') do |file|
+        file.truncate(0)
+        file.write(template.result(binding))
+      end
+
+      new_filepath = filepath.gsub(/.erb$/, '')
+      File.rename filepath, new_filepath
+      return new_filepath
     end
   end
 
