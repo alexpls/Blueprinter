@@ -11,14 +11,27 @@ module Blueprinter
       @projects_path = options[:projects_path]
       @blueprint_path = options[:blueprint_path]
       @blueprint_prefix = options[:blueprint_prefix]
-      
-      @post_processors = Hash.new
+
+      @processors = Hash.new
+
+      if options[:processors]
+        available_processors = Blueprinter::Processors.instance_methods
+        extend Blueprinter::Processors
+
+        options[:processors].each do |processor|
+          if available_processors.include? processor
+            eval(processor.to_s)
+          else
+            raise InvalidProcessor, "#{method_name} is not defined."
+          end
+        end
+      end
 
       raise NotDirectoryError unless File.directory? @projects_path
       raise NotDirectoryError unless File.directory? @blueprint_path
     end
 
-    def init_project_interactive
+    def init_interactive
       proj_path = nil
       while proj_path == nil
         puts "What's your new project going to be called?"
@@ -46,8 +59,6 @@ module Blueprinter
 
       FileUtils.mkdir(@path)
       FileUtils.cp_r(File.join(@blueprint_path, '.'), @path)
-
-      add_processor(/.erb$/, Processors::process_erb_template)
       
       process_copied_files(@path)
     end
@@ -70,7 +81,7 @@ module Blueprinter
         end
         
         # Run post processors
-        @post_processors.each do |pattern, block|
+        @processors.each do |pattern, block|
           if filepath.match pattern
             block.call(filepath)
           end
@@ -79,13 +90,13 @@ module Blueprinter
     end
     
     def add_processor(pattern, &block)
-      @post_processors[pattern] = block
+      @processors[pattern] = block
     end
   end
-  
+
   module Processors
-    def process_erb_template
-      lambda |filepath| do
+    def erb_template
+      add_processor(/.erb$/) do |filepath|
         template = nil
         File.open(filepath, 'r') do |file|
           template = ERB.new file.read
@@ -101,6 +112,7 @@ module Blueprinter
       end
     end
   end
-
+  
   class NotDirectoryError < StandardError; end
+  class InvalidProcessor < ArgumentError; end
 end
